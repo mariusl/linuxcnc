@@ -1,0 +1,87 @@
+component encoderswitch                   "This component controls the ram rollers and clamp arm logic of the FastFab Profiler";
+
+/******************************************************************************
+*															RAM FUNCTIONS																		*
+******************************************************************************/
+pin in bit front_in = false             "State of opto sensor 3";
+pin in bit front_out = false            "State of opto sensor 4";
+pin in bit front_ram = false            "State of opto sensor 5";
+pin in bit front_clamp = false          "State of opto sensor 6";
+pin in bit back_in = false              "State of opto sensor 7";
+pin in bit back_out = false             "State of opto sensor 8";
+pin in bit back_ram = false             "State of opto sensor 9";
+pin in bit back_clamp = false           "State of opto sensor 10";
+pin in bit reset_in											"reset the component";
+
+pin out bit front_ram_close							"signal to activate front ram";
+pin out bit front_clamp_close						"signal to activate front clamp";
+pin out bit back_ram_close							"signal to activate back ram";
+pin out bit back_clamp_close						"signal to activate back clamp";
+
+
+// Internal and debugging stuff
+
+
+variable bool bWarn = false;            // first reminder
+
+option singleton yes;                   // makes no sense to have more than one of these components running
+function _;
+author "Marius Liebenberg marius@mastercut.co.za";
+license "GPL";
+;;
+
+
+FUNCTION(_)
+{
+
+	
+	/****************  Hydraulic Logic *****************/
+	
+	// front ram and clamp logic
+	if(front_in && front_out)
+	{
+		front_ram_close = true;
+		if(front_ram)
+		{
+			front_clamp_close = true;
+			front_full = true;
+		}else
+		{
+			front_clamp_close = false;
+			//front-closed = true;
+		}
+		
+	}else
+	{
+		front_clamp_close = false;
+		if(!front_clamp)
+		{
+			front_ram_close = false;
+		}
+		front_full = false;
+	}
+	
+	// back ram and clamp logic
+	if(back_in && back_out)
+	{
+		back_ram_close = true;
+		if(back_ram)
+		{
+			back_clamp_close = true;
+			back_full = true;
+		}else
+		{
+			back_clamp_close = false;
+		}
+		
+	}else
+	{
+		back_clamp_close = false;
+		if(!back_clamp)
+		{
+			back_ram_close = false;
+		}
+		back_full = false;
+	}
+
+}

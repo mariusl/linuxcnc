@@ -1,0 +1,8 @@
+# section for main IO controller parameters -----------------------------------
+[EMCIO]
+EMCIO = 		io
+CYCLE_TIME =    0.100
+
+# tool table file
+TOOL_TABLE = tool.tbl
+

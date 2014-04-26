@@ -1,0 +1,18 @@
+# General note: Comments can either be preceded with a # or ; - either is
+# acceptable, although # is in keeping with most linux config files.
+
+# General section -------------------------------------------------------------
+[EMC]
+VERSION =               $Revision$
+MACHINE =               gmoccapy with tool sensor
+DEBUG =               0x00080000
+#DEBUG =               0x7FFFFFFF
+
+# for details see nc_files/subroutines/maco_instructions.txt
+#[MACROS]
+MACRO = i_am_lost
+MACRO = halo_world
+MACRO = jog_around
+MACRO = increment xinc yinc
+MACRO = go_to_position X-pos Y-pos Z-pos
+

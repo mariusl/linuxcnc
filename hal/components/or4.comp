@@ -1,0 +1,10 @@
+component or4 "ored 4 inputs";
+pin in bit in0;
+pin in bit in1;
+pin in bit in2;
+pin in bit in3;
+pin out bit out;
+function_;
+license "GPL";
+;;
+out = in0 | in1 | in2 | in3;

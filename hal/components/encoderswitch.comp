@@ -1,0 +1,302 @@
+component encoderswitch                   "This component switches between three encoders to select the correct unit for feedback";
+
+pin in float main_encoder				"encoder on the motor";
+pin in float main_encoder_vel			"encoder velocity";	
+
+pin in float front_encoder				"encoder in front";
+pin in float front_encoder_vel			"encoder velocity";
+pin in float front_encoder_raw_counts			"encoder raw counts";
+
+pin in float back_encoder				"encoder at the back";
+pin in float back_encoder_vel			"encoder velocity";
+pin in float back_encoder_raw_counts			"encoder raw counts";
+
+pin out float encoder_out				"output of result";
+pin out float encoder_vel			"output of velocity";
+pin out float encoder_raw_counts		"output of raw counts";
+
+
+pin out float encoder_offset			"offset between main and front";
+pin out bit reset_front					"reset the front encoder";
+pin out bit reset_back					"reset back encoder";
+pin out bit x_enable = false			"enable the x axis to move if the ram is locked";
+pin out bit x_amp_enable = false		"enable the x axis to move if the ram is locked";
+
+pin out bit delaystart = false          "Starts timerdelay";
+pin in bit delaydone =false             "Signals timer finished";
+
+pin in bit loaded_switch = false        "State of opto sensor 1";
+pin in bit home_switch = false          "State of opto sensor 2";
+//pin in bit opto3 = false                "State of opto sensor 3";
+
+pin in bit front_in = false             "State of opto sensor 3";
+pin in bit front_out = false            "State of opto sensor 4";
+pin in bit front_ram = false            "State of opto sensor 5";
+pin in bit front_clamp = false          "State of opto sensor 6";
+pin in bit back_in = false              "State of opto sensor 7";
+pin in bit back_out = false             "State of opto sensor 8";
+pin in bit back_ram = false             "State of opto sensor 9";
+pin in bit back_clamp = false           "State of opto sensor 10";
+pin in bit reset_in						"reset the component";
+
+pin out bit front_ram_close				"signal to activate front ram";
+pin out bit front_clamp_close			"signal to activate front clamp";
+pin out bit back_ram_close				"signal to activate back ram";
+pin out bit back_clamp_close			"signal to activate back clamp";
+
+
+pin out bit forward = false             "Direction signal";
+pin out bit run = false                 "Motor command";
+
+pin in bit ishomedX = false             "Status of X axis homing";
+
+param rw float times = 5              "Number of polls of progress_levels 1 & 3 before beginning next move - gives delay for relays";
+param rw float offset = 100				"the distance or value in count between the front and back encoder";
+
+// Internal and debugging stuff
+pin out s32 progress_level = 0;         // tracks the progress of the switcher, just here so it can be read easily
+pin out float dbg = 0;
+pin out bit dbg_bit = 0;
+pin out s32 dbg_position = 0                "Initialised as a pin for debugging so we can check where it thinks it is";
+
+
+variable bool bWarn = false;            // first reminder
+
+variable float sleeptime = 0;           // our own timer to set delay between progress levels 1 and 2
+
+variable float old_back = 0;
+variable float old_front = 0;
+variable float old_main = 0;
+variable float current_back = 0;
+variable float current_front = 0;
+variable float current_main = 0;
+variable float main_offset = 0;
+
+variable bool front_running = false;
+variable bool back_running = false;
+variable bool front_full = false;
+variable bool back_full = false;
+variable bool first_reset = true;
+variable bool reset_state = false;
+
+variable s32 X_state = 0;
+
+variable s32 NONE_IN = 1;
+variable s32 FRONT_IN = 2;
+variable s32 BACK_IN = 3;
+variable s32 BOTH_IN = 4;
+
+option singleton yes;                   // makes no sense to have more than one of these components running
+function _;
+author "Marius Liebenberg marius@mastercut.co.za";
+license "GPL";
+;;
+
+
+FUNCTION(_)
+{
+
+	
+	/****************  Hydraulic Logic *****************/
+	
+	// front ram and clamp logic
+	if(front_in && front_out)
+	{
+		front_ram_close = true;
+		if(front_ram)
+		{
+			front_clamp_close = true;
+			front_full = true;
+			// now we can move the X if it is not homed already
+			if (ishomedX == false)
+			{
+				if(first_reset== true)
+				{
+					reset_back = true;
+        			reset_front = true;
+        			first_reset = false;
+        		}
+				x_enable = true;
+			}
+		}else
+		{
+			front_clamp_close = false;
+			//front-closed = true;
+		}
+		
+	}else
+	{
+		front_clamp_close = false;
+		if(!front_clamp)
+		{
+			front_ram_close = false;
+		}
+		front_full = false;
+	}
+	
+	// back ram and clamp logic
+	if(back_in && back_out)
+	{
+		back_ram_close = true;
+		if(back_ram)
+		{
+			back_clamp_close = true;
+			back_full = true;
+		}else
+		{
+			back_clamp_close = false;
+		}
+		
+	}else
+	{
+		back_clamp_close = false;
+		if(!back_clamp)
+		{
+			back_ram_close = false;
+		}
+		back_full = false;
+	}
+	
+	/***************  RESET LOGIC *********************/
+	
+	if((reset_in == true) && (reset_state = false))
+	{
+		reset_state = true;
+		first_reset = true;
+	}else
+	{
+		if((reset_in == false) && (reset_state == true)) 
+		{
+			reset_state = false;
+		}
+	}
+	
+	
+	/***************** ENABLE THE AXIS CONTOL *********************/
+	
+	if((front_full == true) || (back_full == true))
+	{
+		if(front_full == true){X_state = FRONT_IN;}
+		if(back_full == true){X_state = BACK_IN;}
+		x_enable = true;
+		x_amp_enable = true;
+	}else
+	{
+		x_enable = false;
+		x_amp_enable = false;
+	}
+	
+	
+	/***************** ENCODER SWITCH LOGIC ********************/
+	
+	switch (X_state)
+        {
+        case NONE_IN:  // idle waiting
+        	encoder_out = 0;
+        	encoder_vel = 0;
+        	encoder_raw_counts = 0;
+        break;
+        case FRONT_IN:
+        	encoder_out = front_encoder;
+        	encoder_vel = front_encoder_vel;
+        	encoder_raw_counts = front_encoder_raw_counts;
+        break;
+    	}
+	
+	
+	
+	/*
+	
+	if(ishomedX == true)
+	{
+	
+    switch (progress_level)
+        {
+        case 0:  // idle waiting
+        	// zero all after unhome
+        	old_back = 0;
+        	old_front = 0;
+        	old_main = 0;
+        	current_front = 0;
+        	current_back = 0;
+        	current_main = 0;
+        	sleeptime = times;
+        	progress_level = 3;
+        //	reset_back = true;
+        //	reset_front = true;
+        break;
+        case 1:
+        	reset_back = false;
+        	reset_front = false;
+        	
+        	main_offset = main_encoder;// - front_encoder;
+        	progress_level = 2;
+        break;
+        	
+        case 2: // we are running on the top encoders
+        	// check to see who is running
+        	
+        	
+        	if(current_front != front_encoder){
+        		front_running = true;
+        		current_front = front_encoder;
+        		}else{
+        			front_running = false; 
+        			
+        			//dbg = current_front;
+        		}
+        		
+        	if(current_back != back_encoder){
+        		back_running = true;
+        		current_back = back_encoder;
+        		}else{
+        			back_running = false; 
+        			
+        		}
+        		
+        	dbg_bit = back_running;
+        	
+        	if((front_running) && (!back_running))
+        	{ // use the front decoder
+        		encoder_out = front_encoder; // + main_offset;
+        		dbg = front_encoder;// + main_offset;
+        	}else
+        	if((back_running) && (!front_running))
+        	{ // use back only
+        		encoder_out = (back_encoder - offset);//- main_offset;
+        	}
+        	
+        	//encoder_out = result;
+        break;	
+        
+        case 3: // programmed delay to allow relays time to change over
+                if(sleeptime > 0)  
+                    {
+                    	sleeptime -= fperiod;
+                  //  break;
+                    }else
+                    {
+                		delaystart = true;
+                		progress_level = 1; // after
+                	} 
+                break; 
+        
+        case 10:   break;  // should never get here but if we do then loop endlessly doing nothing
+                
+        default:    
+                progress_level = 10;
+                rtapi_print_msg(RTAPI_MSG_ERR, "Error state in encoderswitch - now disabled - unload encoderswitch");            
+                break;
+        }
+    }else
+    {
+    	progress_level = 0;
+    //	encoder_out = front_encoder; //main_encoder;// + main_offset;
+    	
+    	
+    }
+    
+ // encoder_out = front_encoder;//main_encoder; /////// remove later just to test
+//  encoder_out_vel = front_encoder_vel;
+ */      
+}

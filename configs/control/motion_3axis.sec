@@ -1,0 +1,33 @@
+# Motion control section ------------------------------------------------------
+[EMCMOT]
+EMCMOT =              motmod
+COMM_TIMEOUT =          1.0
+COMM_WAIT =             0.010
+BASE_PERIOD  =          100000
+SERVO_PERIOD =          1000000
+
+# Hardware Abstraction Layer section --------------------------------------------------
+[HAL]
+HALFILE = core_sim.hal
+HALFILE = spindle_sim.hal
+#HALFILE = axis_manualtoolchange.hal
+#HALFILE = manualtoolchange.hal
+HALFILE = simulated_home.hal
+
+# Single file that is executed after the GUI has started.
+POSTGUI_HALFILE = tool_sensor_postgui.hal
+HALUI = halui
+
+# Trajectory planner section --------------------------------------------------
+[TRAJ]
+AXES =             3
+COORDINATES =      X Y Z 
+HOME =             0 0 0
+LINEAR_UNITS =     mm
+ANGULAR_UNITS =    degree
+CYCLE_TIME =       0.010
+DEFAULT_VELOCITY = 9.0
+MAX_VELOCITY =     234
+POSITION_FILE =    position.txt
+#NO_FORCE_HOMING = 1
+

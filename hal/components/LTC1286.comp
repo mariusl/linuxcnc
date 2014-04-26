@@ -1,0 +1,52 @@
+component LTC1286                 "This component converts a twelve bit serial word from an LTC1286 ADC into an unsigned word.(2008/01/22 kwallace@wallacecompany.com)";
+
+pin in  bit bit_in                "This is the value of the n'th bit from the ADC data line.";
+
+pin out bit clock_out             "This commands (on the falling edge) the ADC to clock the n'th bit onto the data line.";
+pin out bit cs_out                "This commands (on the falling edge) the ADC to get ready to convert the analog input to serial binary.";
+pin out unsigned byte_out         "This is the byte value of the analog signal with full scale at 4095 at 5 Volts.";
+
+variable unsigned which_bit = 11; //This holds the value of which bit is being received, MSB bit 11 first to LSB bit 0 last.
+variable unsigned accum;          //The value of each bit gets added to this, bit 11 = 2048, 10 = 1024, etc.
+
+variable unsigned adc_mode;       //This holds the value of the current mode during the cs_out (low) period. There are three modes; ADC init (3 clock cycles), shift data in (12 clock cycles), shutdown (1 clock cycle).";
+variable unsigned adc_step;       //This holds the value of the state change index, 0 to 31 steps or 16 clock cycles.
+
+function _ nofp;
+license "GPL";
+
+;;
+
+FUNCTION(_) {
+    switch (adc_mode) {
+        case 0:                                       // ***  Mode 0 : Wake-up
+            cs_out=0;                                 // Set cs_out low to wake up the ADC
+            clock_out=0x1 & adc_step;                 // Set clock_out high on odd adc_step's
+            if (adc_step>=6) { adc_mode=1; }          // If step 6 is the end of wake-up, so change to next mode
+            adc_step++;
+            break;
+        case 1:                                       // ***  Mode 1 : Shift Data from ADC
+            clock_out=0x1 & adc_step;                 // Set clock_out high on odd adc_step's
+            if (clock_out) {                          // If clock_out is high ...
+                if (bit_in) {                         // check if bit is high, if so ...
+                    accum = accum | (1 << which_bit); // shift to current bit location, and add to accumulator.
+                }
+                which_bit--;
+            }
+            if (adc_step>=29) {                       // If we are at step 29, we are done data shifting, so ...
+                adc_mode=2;                           // change to the next mode,
+                which_bit=11;                         // reset the bit counter,
+                byte_out=accum;                       // output the finished byte,
+                accum=0;                              // reset the accumulator.
+            }
+            adc_step++;
+            break;
+        case 2:                                       // ***  Mode 2 : Invoke Sleep
+            cs_out=1;                                 // Set cs_out high to put the ADC to sleep
+            if (adc_step>=31) {                       // If we are at step 31, we are done, so ...
+                adc_mode=0;                           // get ready to start again.
+                adc_step=0;
+            } else { adc_step++; }
+            break;
+    }
+}

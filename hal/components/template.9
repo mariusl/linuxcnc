@@ -1,0 +1,48 @@
+.TH TEMPLATE "9" "2013-11-05" "LinuxCNC Documentation" "HAL Component"
+.de TQ
+.br
+.ns
+.TP \\$1
+..
+
+.SH NAME
+
+template \- A Template for writing good components
+.SH SYNOPSIS
+.HP
+.B loadrt template [count=\fIN\fB|names=\fIname1\fB[,\fIname2...\fB]]
+.SH DESCRIPTION
+
+ This is a template to enable users to write good coponent code. It gives the basic structure and allows the user to edit the required fields and add their code.
+.SH FUNCTIONS
+.TP
+\fBtemplate.\fIN\fB\fR (requires a floating-point thread)
+
+.SH PINS
+.TP
+.B template.\fIN\fB.F-in\fR float in \fR
+.TQ
+.B template.\fIN\fB.I-in\fR u32 in \fR
+.TQ
+.B template.\fIN\fB.S-in\fR s32 in \fR
+.TQ
+.B template.\fIN\fB.B-1\fR bit in \fR
+.TQ
+.B template.\fIN\fB.B-2\fR bit in \fR
+.TQ
+.B template.\fIN\fB.B-3\fR bit in \fR
+.TQ
+.B template.\fIN\fB.F-out\fR float out \fR(default: \fI0.0\fR)
+.SH PARAMETERS
+.TP
+.B template.\fIN\fB.F-max-1\fR float rw \fR(default: \fI40.0\fR)
+.TQ
+.B template.\fIN\fB.F-max-2\fR float rw \fR(default: \fI60.0\fR)
+.TQ
+.B template.\fIN\fB.F-max-3\fR float rw \fR(default: \fI80.0\fR)
+.SH AUTHOR
+
+Marius D. Liebenberg
+.SH LICENSE
+
+GPL

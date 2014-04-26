@@ -1,0 +1,40 @@
+component template "A Template for writing good components";
+
+description " This is a template to enable users to write good coponent code. \
+It gives the basic structure and allows the user to edit the required fields and add their code." ;
+
+author "Marius D. Liebenberg";
+
+//option singleton yes;
+//option default_count = 1;
+//option userspace yes;
+
+// Input Pins
+pin in float 			F_in;
+pin in unsigned 	I_in;
+pin in s32				S_in;
+
+pin in bit 				B_1 ;
+pin in bit 				B_2 ;
+pin in bit 				B_3 ;
+
+// Output Pins
+pin out float F_out = 0.0;
+
+// Parameters 
+param rw float F_max_1 = 40.0;
+param rw float F_max_2 = 60.0;
+param rw float F_max_3 = 80.0;
+
+// Global Variables
+variable float var ;
+
+function _;
+license "GPL";
+;;
+
+#include "rtapi_math.h"
+
+FUNCTION(_) {
+}
+

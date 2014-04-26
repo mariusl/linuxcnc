@@ -1,0 +1,83 @@
+component thc200 "THC-200 Torch Height Control. This will calculate the up / down condition from the tip voltage";
+
+// description 
+
+// MC200 Digital Torch Height Control
+// 
+// The THC200 sends UP and Down signals if the Torch Voltage is out of range. 
+// 
+// The THC200 component needs a voltage reference (like a spindle controller), 
+// to match User Interface display the signal is scaled in this component.
+
+
+author "Marius D. Liebenberg";
+
+option singleton yes;
+
+// Input Pins
+
+pin in float set_voltage_in ;//"The Tip Voltage reference from THCCALC "
+pin in float arc_voltage_in ;
+//pin in float machine_current_in ;
+pin in float voltage_window ;
+//pin in float min_offset ;
+//pin in float max_offset ;
+
+pin in bit arc_ok = 0 ;//
+
+
+// Output Pins
+//pin out bit arc_ok = 0 ;//
+pin out bit up = 0 ;//"UP signal to THC"
+pin out bit down = 0 ;//"DOWN signal to THC "
+pin out bit volts_ok = 0;
+// Parameters 
+//param rw float voltage_window ;//  ??? :-)
+param rw float arc_threshold ;
+
+// Global Variables
+
+//variable float toggle = 0;
+variable float offset ;
+
+function _;
+license "GPL";
+;;
+
+#include "rtapi_math.h"
+
+FUNCTION(_) {
+
+if(arc_ok)
+	{
+		if(arc_voltage_in < (set_voltage_in - voltage_window))
+		{
+			up = true;
+			down = false;
+			volts_ok = false;
+		}else
+		{
+			up = false;
+			volts_ok = true;
+		}
+		if(arc_voltage_in > (set_voltage_in + voltage_window))
+		{
+			down = true;
+			up = false;
+			volts_ok = false;
+		}else
+		{
+			down = false;
+			volts_ok = true;
+		}
+	//	arc_ok = true;
+	}
+	else
+	{
+//		arc_ok = false;
+		down = false;
+		up = false;
+		volts_ok = false;
+	}
+}
+

@@ -1,0 +1,464 @@
+component mc2000 "Mc2000 Torch Height Control";
+
+// description 
+
+// This is still a WIP
+
+// MC2000 Digital Torch Height Control
+// 
+// The THCCALC sends UP and Down signals if the Torch Voltage is out of range. 
+// If enabled and torch is on and X + Y velocity is within tolerance of set speed
+// allow the THC to offset the Z axis as needed to maintain voltage.
+// 
+// If enabled and torch is off and the Z axis is moving to remove any correction
+// at same rate that it was added.
+// 
+// If not enabled pass the Z position and feed back untouched.
+//
+// HAL Motion Connections
+// mc2000.requested-vel <= motion.requested-vel
+// mc2000.current-vel <= motion.current-vel
+// 
+// The THCCALC component needs a voltage reference (like a spindle controller), 
+// to match User Interface display the signal is scaled in this component.
+
+
+author "Marius D. Liebenberg";
+
+option singleton yes;
+
+// Input Pins
+pin in bit up ;								//"Connect to UP signal to parport.0.pin-nn-in from VLCDTHC Hardware"
+pin in bit down ;							//"Connect to DOWN signal from to parport.0.pin-nn-in VLCDTHC Hardware "
+pin in bit torch_on ;					//"Connect to motion.spindle-on"
+pin in bit arc_ok ;						//"Connect Arc OK to parport.0.pin-nn-in from THCCALC";
+pin in bit enable ;						//"Connect to AXIS UI thc enable"
+pin in bit motionenabled ;		//"Connect to motion.motion-enabled"
+pin in bit cornerenable ;			//"Enable the corner lock feature"
+pin in bit floatswitch ;			//"connect to usbio.0.pin-nn-in from Hardware floatswitch"
+pin in bit Z_homed;						//"Connect to axis."Z".homed"
+pin in bit torch_on_man;
+
+pin in float current_vel ;		//"Connect to motion.current-vel"
+pin in float requested_vel ;	//"Connect to motion.requested-vel"
+pin in float feedoverride ;		//"Connect to halui.feed-override.value"
+pin in float setvoltage_in ;	//"The Tip Voltage reference from THCCALC "
+pin in float max_thc ;				//"Limit to positive z move <= reference from control panel"
+pin in float min_thc ;				//"Limit to negative z move <= reference from control panel"
+pin in float z_pos_in ;				//"Z Motor Position Command in <= axis."Z".motor-pos-cmd"
+pin in float velocity_tol ;		//"The deviation percent from planned velocity (Corner Lock)"
+pin in float correction_vel ;	//"The Velocity to move Z to correct the Height in % of THCSpeed ";
+pin in float PierceDelay ;		//"The time needed from plasma to pierce the metal when cut start";
+pin in float PierceHeight ;		//"The space between material and tip when piercing";
+pin in float CutHeight ;			//"The space between material and tip when cut start";
+
+
+// Output Pins
+pin out bit toggle_man = 0;
+pin out bit toggle = 0;				//Used as flag
+pin out bit FirstTimeOn;			//Used as flag
+pin out bit SearchMat ;				//Used as flag
+pin out bit ZPosOk;						//Used as flag
+pin out bit adjusting ;				//Used as flag
+pin out bit cutting ;					//Used as flag
+pin out bit SwOffsOn;					//Used as flag
+pin out bit PirOffs;					//Used as flag 
+pin out bit FireTorch;				//Used as flag 
+
+pin out bit vel_error ;				//"When the THC thinks we are NOT at requested speed when cutting"
+pin out bit vel_status ;			//"When the THC thinks we are at requested speed"
+pin out bit arc_ok_out ;			//"Pass Arc OK signal after a PierceDelay to motion.feed-hold ";
+pin out bit torch_on_ok ;			//"Connect to parport.0.pin-nn-out to VLCDTHC Hardware TorchOn & stepgen spindle"
+pin out bit enabled ;					//"Connect to AXIS UI thc enable LED"
+pin out bit Z_home ;					//"Connect to axis.n.home-sw-in since we share the same input for Zhome and floatswitch"
+pin out bit AllowXY ;					//"Connect to motion.spindle-at-speed used instead of arc_ok_out & motion.feed-hold "
+pin out bit arc_ok_fail_detected ;//"Usead as flag"
+pin out bit arc_ok_fail ;			//"Pass Arc OK fault to motion.feed-hold ";
+pin out float ZPos = 0 ;
+pin out float ZPosCmnd = 0 ;
+pin out float setvoltage_out ;//"The Tip Voltage reference scaled to send to VLCDTHC Hardware"
+pin out float z_pos_out ;			//"Z Motor Position Command to stepgen."Z".position-cmd"
+pin out float z_fb_out ;			//"Z Position Feedback to => axis."Z".motor-pos-fb"
+pin out float ZHCutting ;			//"Z Position relative to material at start cut while cutting"
+pin out float MatPos;					//Position feedback to Max THC and Min THC
+pin out float Scale = 0.001;	// step mm
+
+// Parameters 
+param rw float switchoffset;	//  ??? :-)
+param rw float THCSpeed = 0.005;//" The max speed allowd from Z mechanics 0,005 mm per cycle start value
+
+// Global Variables
+
+//variable float toggle = 0;
+variable float offset;
+variable float Poffset;
+variable float stepgenZFBoffs;
+variable float CoeffSpeedDown;
+variable float vel_floatswitch;
+variable float Timer ;
+variable float PTimer ;
+variable float CuttingHeight;
+variable float Matpos ;
+
+// definitions for the state machine
+variable int state;
+variable int probe_state;
+
+//variable float MatPos;//Position feedback to Max THC and Min THC
+function _;
+license "GPL";
+;;
+
+#include "rtapi_math.h"
+#define MAX 8
+#define TOUCH_OFF 1
+#define PILOT_ON  2
+#define WAITING_FOR_ARC_GOOD 3
+#define CUTTING 4
+
+#define SEARCH_MATERIAL 1
+#define SEARCH_SWITCH 2
+
+
+FUNCTION(_) {
+    
+setvoltage_out=setvoltage_in / 2.0;			//Made to match the speed2volt converter
+
+if(!enabled){ 													// only turn torch on manually if the THC is off
+	if(torch_on_man){
+		torch_on_ok = torch_on_man;
+	}
+	else{
+		torch_on_ok = torch_on;
+	}
+	//torch_on_ok = torch_on;
+}
+// set the enable button state
+if(enable && toggle )
+{
+	toggle=0;
+}
+if(!enable && !toggle )
+{
+	enabled=!enabled;
+	toggle=1;
+	rtapi_print("THC Toggled\n\r");
+}
+
+if (!motionenabled && FirstTimeOn ) //Disable THC when motion.motion-enabled is disabled
+{
+	FirstTimeOn=0;
+	enabled =0;
+}
+
+if (motionenabled && !FirstTimeOn )
+{
+	FirstTimeOn=1;
+	enabled =1;
+	state = 0;
+}
+
+/*
+if (!Z_homed )  //Reset Z Axis as floatswitch and ZHome share the same input ...
+{
+	Z_home = floatswitch;
+}else
+{
+	Z_home=1;
+}
+*/
+
+
+/************************** main control loop *********************************/
+
+if(enabled)
+{
+	if (!torch_on)
+	{
+		//rtapi_print(" 1 - Torch off - setting heights\n\r");
+		CuttingHeight = CutHeight; 
+		Poffset = PierceHeight - CuttingHeight; 
+		Scale=(1/THCSpeed);
+	}
+
+	if (torch_on)
+	{
+		switch state
+		{
+			case TOUCH_OFF:
+				switch probe_state
+				{
+					case 0:
+						ZPos = z_pos_in; 					// get the z position at startup
+						probe_state = SEARCH_MATERIAL;
+						AllowXY = 0;							// spindle not at speed
+					break;
+					case SEARCH_MATERIAL:
+						if (!floatswitch)   
+						{
+							ZPos -=1;
+							z_pos_out = ZPos;  
+  						z_fb_out = z_pos_out ; // do not !! keep axis motor position fb (Ferror very high on Z axis!)
+						}else
+						{
+							Matpos = ZPos + switchoffset;
+							probe_state = SEARCH_SWITCH;
+						}
+					break;
+					case SEARCH_SWITCH:
+						ZPos = Matpos + PierceHeight;
+						z_pos_out = ZPos;  
+  					z_fb_out = z_pos_out ; // do not !! keep axis motor position fb (Ferror very high on Z axis!)
+  					state = PILOT_ON;
+  					probe_state = 100;
+					break;
+					case 100:
+					break;
+				}
+			break;
+			case PILOT_ON:
+				if(z_pos_in == ZPos) 				// z has finished its move to pierce height
+				{
+					PTimer = PierceDelay;
+					torch_on_ok = 1;
+					state = WAITING_FOR_ARC_GOOD;
+				}
+			break;
+			case WAITING_FOR_ARC_GOOD:
+				if(arc_ok && (PTimer > 0))
+				{ 
+					PTimer -= fperiod;
+					AllowXY = 0;
+				}else
+				{
+					if(arc_ok)
+					{
+						ZPos = Matpos + CutHeight;
+						z_pos_out = ZPos;  
+  					z_fb_out = z_pos_out ; // do not !! keep axis motor position fb (Ferror very high on Z axis!)
+  					AllowXY = 1;
+  					state = CUTTING;
+					}
+				}
+			
+			break;
+			case CUTTING:
+			break;
+			case 0:
+			//torch off
+			break;
+		}
+	}
+	else
+	{
+		state = 0;
+	}
+	
+}
+else
+{
+		AllowXY = 1;
+		z_pos_out = z_pos_in ;
+		z_fb_out = z_pos_in;	
+	
+}
+
+
+
+
+if(enabled)
+{
+	//rtapi_print(" THC Enabled");
+	//Allow changes only with torch off
+/*
+	if (!torch_on)
+	{
+		//rtapi_print(" 1 - Torch off - setting heights\n\r");
+		CuttingHeight = CutHeight; 
+		Poffset = PierceHeight - CuttingHeight; 
+		Scale=(1/THCSpeed);
+	}
+	*/
+	/***************************  Material Probe ***********************/ 
+	//Search top material at cut start
+	/*
+	if (Z_homed && !floatswitch && !SearchMat && torch_on && !torch_on_ok )   
+	{
+		AllowXY = 0;
+		ZPos -=1;
+		//rtapi_print("2 - search for top started\n\r");
+	}//Stop XY Start Z
+	
+	//material Height reached
+	if (Z_homed && floatswitch && !SearchMat && torch_on && !torch_on_ok )
+	{
+		SearchMat=1;
+		MatPos=ZPos;
+	}   
+	
+	//Add switchoffset to Z
+	if (SearchMat && !SwOffsOn) 
+	{
+		ZPos += (switchoffset*Scale);
+		SwOffsOn=1;
+	}
+	
+	//Add pierceoffset, CutHeigt and sets flags
+	if (SearchMat && !torch_on_ok && SwOffsOn && !PirOffs && !FireTorch)
+	{
+		ZPos += (Poffset*Scale); ZPos += (CuttingHeight*Scale); PirOffs=1; FireTorch=1;
+	} 
+	*/
+	/*************************** Torch ON Control ************************/
+	/*
+	if (FireTorch && !torch_on_ok && ZPosOk)
+	{
+		PTimer = PierceDelay;
+		torch_on_ok=1;
+	}
+
+	//If arc_ok fails... stop moves add PiercerOffset added arc_ok_fail since spindle at speed can't stop during moves 
+	if (!arc_ok && torch_on_ok && AllowXY)
+			{
+				AllowXY = 0;
+				PTimer = PierceDelay; 
+				ZPos += (Poffset*Scale); 
+				arc_ok_fail_detected = 1;
+			}
+	*/
+	/*
+	//wait until Z reach zpierce height and stop moves with arc_ok_fail (motion.feed.hold)
+	if (arc_ok_fail_detected && ZPosOk)
+	{
+		arc_ok_fail = 1;
+		arc_ok_fail_detected = 0;
+	}
+
+
+		//If ArcOk and torch_on both are off reload variable and allow moves			
+	if (!arc_ok && !torch_on)
+	{
+		PTimer = PierceDelay;
+		AllowXY = 1;
+		arc_ok_fail = 0;
+	}
+
+		// Stop moves for pierce delay
+	if(arc_ok && torch_on_ok && (PTimer > 0))
+	{ 
+		PTimer -= fperiod;
+		AllowXY = 0;
+	}
+
+		//Since VLCDTHC Hrdwr retry to fire torch we can wait for an arcOk 	
+	if(arc_ok && torch_on_ok && !AllowXY && (PTimer <= 0))
+	{
+		ZPos -= (Poffset*Scale);
+		AllowXY = 1;
+		arc_ok_fail = 0;
+	}
+*/
+
+/************************* Velocity stuff *************************/
+
+/*
+		//Calculate if torch is running at enough speed
+	if(cornerenable)
+	{
+		float min_velocity = (requested_vel*feedoverride*velocity_tol/100);
+	  	if(current_vel > 0 && current_vel >= min_velocity)
+	  	{vel_status = 1;}
+		  else {vel_status =0;}
+	}
+	else  //Allow correction without care about velocity
+	{
+		vel_status = 1;
+	}				
+
+		//Send an error signal when out of velocity
+	if(torch_on_ok && arc_ok && !vel_status){vel_error = 1;}else{vel_error = 0;}
+
+	if(AllowXY && vel_status && torch_on_ok)  // allow Torch Height Control ...
+	{ 
+		CoeffSpeedDown = correction_vel/100;
+		if(up)
+		{
+			if(ZHCutting <= max_thc)
+			{
+				ZPos +=CoeffSpeedDown;
+			}
+		}//...if no limit reached
+		
+		if(down)
+		{
+			if(ZHCutting >= min_thc)
+			{
+				ZPos -=CoeffSpeedDown;
+			}
+		}//...if no limit reached
+		
+		if(!up && !down)
+		{
+			ZPos = ZPosCmnd;
+		}//If we are at correct height ABORT any correction on Z
+	}else
+	{
+		CoeffSpeedDown=1;
+	}
+		// when torch is powered off remove any offset 
+	/*
+	if(!torch_on && torch_on_ok && SwOffsOn && SearchMat)
+	{
+		torch_on_ok=0; 
+		SwOffsOn=0; 
+		SearchMat=0; 
+		PirOffs=0; 
+		FireTorch=0; 
+		ZPos=0; 
+		FireTorch=0;
+	}
+*/
+/*
+	//Moving Z ...
+	if (abs (ZPos - ZPosCmnd) > CoeffSpeedDown)
+	{
+		ZPosOk=0;
+		if (ZPos > ZPosCmnd)
+		{
+			offset+=(THCSpeed*CoeffSpeedDown);
+			ZPosCmnd +=CoeffSpeedDown;
+		}
+		else
+		{
+			offset-=(THCSpeed*CoeffSpeedDown);
+			ZPosCmnd -=CoeffSpeedDown;
+		}
+	}
+	else
+	{
+		ZPosOk=1;
+	}
+				
+	//Update ZHCutting
+	if (SearchMat)
+	{
+		ZHCutting =((ZPos - MatPos)/Scale)-switchoffset;
+	}
+	else
+	{ 
+		ZHCutting=0;
+	}
+
+	z_pos_out = offset + z_pos_in;// add offsets to Zaxis
+  z_fb_out = z_pos_out ; // do not !! keep axis motor position fb (Ferror very high on Z axis!)
+	*/		
+}else /// not enabled
+	{
+/*
+		z_pos_out = z_pos_in ;
+		z_fb_out = z_pos_in;
+		*/	
+	}
+	
+	
+}

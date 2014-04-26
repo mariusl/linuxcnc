@@ -1,0 +1,49 @@
+# Part program interpreter section --------------------------------------------
+[RS274NGC]
+RS274NGC_STARTUP_CODE = G17 G21 G40 G43H0 G54 G64P0.005 G80 G90 G94 G97 M5 M9
+PARAMETER_FILE = sim.var
+SUBROUTINE_PATH = macros
+
+# optional features - a bit mask to selectively turn on experimental/dubious features
+# see 
+# RETAIN_G43           0x00000001
+# OWORD_N_ARGS         0x00000002
+# INI_VARS             0x00000004
+# HAL_PIN_VARS         0x00000008
+# NO_DOWNCASE_OWORD    0x00000010
+# turn on all optional features
+
+# turn on optional features in this case just INI reading 
+FEATURES=12
+
+ON_ABORT_COMMAND=O <on_abort> call 
+
+# parameters exposed by change_prolog/evaluated by change_epilog:
+#    #<tool_in_spindle>
+#    #<selected_tool>
+#    #<current_pocket>
+#    #<selected_pocket>
+REMAP=M6  modalgroup=6 prolog=change_prolog ngc=change epilog=change_epilog
+
+# accessible in interp as #<_[section]name>
+# start of tool length touchoff probe
+[TOOLSENSOR]
+X = 10
+Y = 10  
+Z = -20
+# abort change if no toolsensor contact after this probe distance
+MAXPROBE =  -20
+
+# this is not named TOOL_CHANGE_POSITION  on purpose - canon uses it and will
+# interfere
+[CHANGE_POSITION]
+X = 10
+Y = 10
+Z = -2
+
+# the Python plugins serves interpreter and task
+[PYTHON]
+PATH_PREPEND = python
+TOPLEVEL = python/toplevel.py
+LOG_LEVEL = 8
+

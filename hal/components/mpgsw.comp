@@ -1,0 +1,89 @@
+component mpgsw "decode 11 input values to 28 output values";
+
+pin in bit in4;
+pin in bit in5;
+pin in bit in6;
+pin in bit in7;
+
+pin in bit in8;
+pin in bit in9;
+pin in bit in10;
+pin in bit in15;
+
+pin in bit in11;
+pin in bit in12;
+pin in bit in13;
+
+pin in bit mison;
+pin in bit pispsd;
+
+pin out bit sw1on;
+pin out bit sw1off;
+pin out bit sw2;
+pin out bit sw3;
+pin out bit sw4;
+pin out bit sw5;
+pin out bit sw6pse;
+pin out bit sw6res;
+pin out bit sw7;
+pin out bit sw8;
+pin out bit sw9;
+pin out bit sw10;
+
+pin out bit selX;
+pin out bit selY;
+pin out bit selZ;
+pin out bit selA;
+pin out bit selC;
+pin out bit selF;
+pin out bit selS;
+pin out bit selJ;
+pin out bit selV;
+
+pin out float incr;
+pin out bit serAut;
+pin out bit serMan;
+pin out bit serMDI;
+pin out bit serWrl;
+
+function _;
+license "GPL";
+;;
+FUNCTION(_) {
+    if ((in4==0) && (in5==0) && (in6==1) && (in7==0) && (mison==0)) {
+        sw1on = 1; return;} else {sw1on = 0;}
+    if ((in4==0) && (in5==0) && (in6==1) && (in7==0) && (mison==1)) {
+        sw1off = 1; return;} else {sw1off = 0;}
+    if ((in4==1) && (in5==1) && (in6==0) && (in7==0)) {sw2 = 1 ;} else {sw2 = 0;}
+    if ((in4==0) && (in5==1) && (in6==0) && (in7==0)) {sw3 = 1 ;} else {sw3 = 0;}
+    if ((in4==1) && (in5==0) && (in6==0) && (in7==0)) {sw4 = 1 ;} else {sw4 = 0;}
+    if ((in4==0) && (in5==0) && (in6==0) && (in7==1)) {sw5 = 1 ;} else {sw5 = 0;}
+    if ((in4==1) && (in5==1) && (in6==1) && (in7==0) && (pispsd==0) && (mison==0)) {
+         sw6pse = 1 ; return;} else {sw6pse = 0;}
+    if ((in4==1) && (in5==1) && (in6==1) && (in7==0) && (pispsd==1) && (mison==0)) {
+         sw6res = 1 ; return;} else {sw6res = 0;}
+    if ((in4==0) && (in5==1) && (in6==1) && (in7==0)) {sw7 = 1 ;} else {sw7 = 0;}
+    if ((in4==1) && (in5==0) && (in6==1) && (in7==0)) {sw8 = 1 ;} else {sw8 = 0;}
+    if ((in4==0) && (in5==1) && (in6==0) && (in7==1)) {sw9 = 1 ;} else {sw9 = 0;}
+    if ((in4==1) && (in5==0) && (in6==0) && (in7==1)) {sw10 = 1 ;} else {sw10 = 0;}
+
+    if ((in8==1) && (in9==1) && (in10==0) && (in15==0)) {selX = 1 ;} else {selX = 0;}
+    if ((in8==0) && (in9==1) && (in10==0) && (in15==0)) {selY = 1 ;} else {selY = 0;}
+    if ((in8==1) && (in9==0) && (in10==0) && (in15==0)) {selZ = 1 ;} else {selZ = 0;}
+    if ((in8==1) && (in9==0) && (in10==0) && (in15==1)) {selA = 1 ;} else {selA = 0;}
+    if ((in8==0) && (in9==0) && (in10==0) && (in15==1)) {selC = 1 ;} else {selC = 0;}
+    if ((in8==0) && (in9==0) && (in10==1) && (in15==0)) {selF = 1 ;} else {selF = 0;}
+    if ((in8==1) && (in9==0) && (in10==1) && (in15==0)) {selS = 1 ;} else {selS = 0;}
+    if ((in8==0) && (in9==1) && (in10==1) && (in15==0)) {selJ = 1 ;} else {selJ = 0;}
+    if ((in8==1) && (in9==1) && (in10==1) && (in15==0)) {selV = 1 ;} else {selV = 0;}
+    incr = 0;
+    if ((in11==1) && (in12==1) && (in13==0)) {incr = 0.5 ;} 
+    if ((in11==0) && (in12==1) && (in13==0)) {incr = 0.1 ;} 
+    if ((in11==1) && (in12==0) && (in13==0)) {incr = 0.01 ;} 
+    if ((in11==0) && (in12==0) && (in13==0)) {incr = 0.001 ;} 
+    if (incr != 0) {serMan = 1; serAut = 0; serMDI = 0; serWrl = 0; return;}
+    if ((in11==0) && (in12==0) && (in13==1)) {serAut = 1 ;} else {serAut = 0;}
+    if ((in11==1) && (in12==0) && (in13==1)) {serMan = 1 ;} else {serMan = 0;}
+    if ((in11==0) && (in12==1) && (in13==1)) {serMDI = 1 ;} else {serMDI = 0;}
+    if ((in11==1) && (in12==1) && (in13==1)) {serWrl = 1 ;} else {serWrl = 0;}
+}

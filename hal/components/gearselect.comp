@@ -1,0 +1,55 @@
+component gearselect "Set the spindle speed according to the gear selected";
+
+// description 
+
+author "Marius D. Liebenberg";
+
+option singleton yes;
+
+// Input Pins
+pin in float speed_in;
+
+pin in bit gear_1 ;
+pin in bit gear_2 ;
+pin in bit gear_3 ;
+
+// Output Pins
+pin out float speed_out = 0.0;
+
+// Parameters 
+param rw float speed_max_1 = 400.0;
+param rw float speed_max_2 = 600.0;
+param rw float speed_max_3 = 800.0;
+
+// Global Variables
+variable float offset ;
+
+function _;
+license "GPL";
+;;
+
+#include "rtapi_math.h"
+
+FUNCTION(_) {
+	if(gear_1 == 1)
+	{
+		speed_out = (speed_in * speed_max_1);
+	}else
+	{
+		if(gear_2 == 1)
+		{
+			speed_out = (speed_in * speed_max_2);
+		}
+		else
+		{
+			if(gear_3 == 1)
+			{
+				speed_out = (speed_in * speed_max_3);
+			}else
+			{
+				speed_out = (speed_in * speed_max_1);
+			}
+		}
+	}
+}
+

@@ -1,0 +1,12 @@
+loadrt gearselect
+addf gearselect servo-thread
+
+setp gearselect.speed-max-1 500
+setp gearselect.speed-max-2 800
+setp gearselect.speed-max-3 1200
+net g1 your_switch_1 => gearselect.gear-1
+net g2 your_switch_2 => gearselect.gear-2
+net g3 your_switch_3 => gearselect.gear-3
+net sp your_pwm <= gearselect.speed
+
+

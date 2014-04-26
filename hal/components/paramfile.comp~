@@ -1,0 +1,63 @@
+component paramhelper;
+
+pin in float invalue                "Receives value to save";
+pin out float outvalue              "Sends value";
+pin in bit readtrigger = 0          "signal to read from file";
+pin in bit writetrigger = 0         "signal to write to file";
+
+option singleton yes;               
+option userspace yes;
+
+author "ArcEye";
+license "GPL";
+;;
+
+#include <stdio.h>    /* Standard input/output definitions */
+#include <stdlib.h> 
+#include <stdint.h>   /* Standard types */
+#include <string.h>   /* String function definitions */
+#include <unistd.h>   /* UNIX standard function definitions */
+#include <fcntl.h>    /* File control definitions */
+#include <errno.h>    /* Error number definitions */
+#include <signal.h>
+int done = 0;
+
+
+void adios(int sig)
+{
+    done = 1;
+}
+
+
+void user_mainloop(void)
+{
+char filepath[] = "~/emc2/param.sav";
+int read = 0;
+
+    signal(SIGINT, adios);
+    signal(SIGTERM, adios);
+        
+    while(!done)
+        {
+        usleep(500000);
+        
+        FOR_ALL_INSTS()  
+            { 
+            if(readtrigger && !read) // only want to read once
+                {
+                FILE *fp;
+                fp = fopen(filepath, "r");
+                fscanf(fp, "%f", (float*)&outvalue);
+                read = 1;  
+                }
+            else if(writetrigger)
+                {
+                FILE *fp;
+                fp = fopen(filepath, "w");
+                fprintf(fp, "%f", invalue);
+                }           
+            }
+        }
+
+    exit(0);
+}

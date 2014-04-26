@@ -1,0 +1,82 @@
+component paramvoltage;
+
+pin in float involtage                "Receives value to save";
+pin out float outvoltage              "Sends value";
+pin in bit readtrigger = 0          "signal to read from file";
+pin in bit writetrigger = 0         "signal to write to file";
+
+option singleton yes;               
+option userspace yes;
+
+// debug
+pin out float ov;
+pin out bit tp;
+
+
+author "ArcEye";
+license "GPL";
+;;
+
+#include <stdio.h>    /* Standard input/output definitions */
+#include <stdlib.h> 
+#include <stdint.h>   /* Standard types */
+#include <string.h>   /* String function definitions */
+#include <unistd.h>   /* UNIX standard function definitions */
+#include <fcntl.h>    /* File control definitions */
+#include <errno.h>    /* Error number definitions */
+#include <signal.h>
+int done = 0;
+float old_voltage = 0;
+
+void adios(int sig)
+{
+    done = 1;
+}
+
+
+void user_mainloop(void)
+{
+char filepath[] = "~/linuxcnc/param.sav";
+char voltagefilepath[] = "~/linuxcnc/voltage.sav";
+//char filepath[] = "~/linuxcnc/param.sav";
+//char filepath[] = "~/linuxcnc/param.sav";
+
+int read = 0;
+
+    signal(SIGINT, adios);
+    signal(SIGTERM, adios);
+        
+    while(!done)
+        {
+        usleep(500000);
+        ov = 10;//old_voltage;
+        
+        tp = 1;
+        FOR_ALL_INSTS()  
+            { 
+            outvoltage = 101.09;
+            //FILE *fp;
+            //    fp = fopen(filepath, "r");
+            //    fscanf(fp, "%f", (float*)&outvoltage);
+            if(readtrigger && !read) // only want to read once
+            //if((involtage == 0) && !read) // only want to read once
+                {
+                FILE *fp;
+                fp = fopen(voltagefilepath, "r");
+                fscanf(fp, "%f", (float*)&outvoltage);
+                read = 1;  
+               // old_voltage = outvoltage;
+                }
+            else if(writetrigger)
+                {
+                FILE *fp;
+                fp = fopen(voltagefilepath, "w");
+                fprintf(fp, "%f", involtage);
+                old_voltage = involtage;
+                
+                }           
+            }
+        }
+
+    exit(0);x
+}
