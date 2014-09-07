@@ -1,0 +1,39 @@
+component demux2 "A demultiplexer to select from one of two outputs to connect to the input";
+
+description " This component allows you to connect a single input to one of several outputs. \
+This version will connect only one of two outputs." ;
+
+author "Marius D. Liebenberg";
+
+//option singleton yes;
+//option default_count = 1;
+//option userspace yes;
+
+// Input Pins
+pin in bit 			in0  "Any float input value";
+
+pin in bit 			sel  "If HIGH the out1 will be connect to in0, else the out 0 will be connected ";
+
+// Output Pins
+pin out bit 		out0 "Follows the value of in0 if sel is FALSE";
+pin out bit 		out1 "Follows the value of in0 if sel is TRUE";
+
+
+// Parameters 
+
+// Global Variables
+
+function _;
+license "GPL";
+;;
+
+#include "rtapi_math.h"
+
+FUNCTION(_) {
+
+    if(sel) out1 = in0;
+    else out0 = in0;
+
+
+}
+

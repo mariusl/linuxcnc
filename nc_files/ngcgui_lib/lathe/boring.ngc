@@ -1,0 +1,75 @@
+;boring
+
+O<boring> sub
+
+G18 G7
+
+#5 = #<_hal[gladevcp.bore.z-f]> ;finish z
+#1 = [#<_hal[gladevcp.bore.x-f]> / 2] ;finish dia
+#2 = #<_hal[gladevcp.bore.sf-f]> ;constant surface speed
+#3 = #<_hal[gladevcp.bore.cut-f]> ;cut size
+#4 = #<_hal[gladevcp.bore.feed-f]> ;feed per rev
+#6 = #<_hal[gladevcp.bore.rad-f]> ;internal radius
+#7 = #<_hal[gladevcp.bore.angle-f]> ;id taper angle
+
+#14 = [#<_x>] (starting X)
+#13 = #<_z> (starting Z)
+
+#20 = [#6 * SIN[#<id_angle>]]
+#21 = [-#6 * COS[#<id_angle>]]
+#22 = [#6 / COS[#<id_angle>]]
+#23 = [#5 + #6 - #20]
+#24 = [[#23 - #13] * TAN[#<id_angle>]]
+
+#<finish_z> = #5
+#<finish_rad> = #1
+#<cut_size> = #3
+#<id_angle> = #7
+#<x_start> = #14
+#<id_radius> = #6
+
+G8 ; Radius mode (easier maths)
+G18 ; XZ Plane
+G21 ; Metric Units
+G90 ; Absolute Distance
+G91.1 ; but not for arcs
+G96 D1500 S#2 ; Constant Surface Speed Mode
+g95 F#4 ; Feed-Per-Rev Mode
+
+M6 T#<_hal[gladevcp.turn.tool-s]> G43
+m3 ;Start Spindle
+
+g4p1 ; Wait to reach speed
+
+/	(debug, Turning finish dia #1 start  dia #<x_start> start length #13 finish length #<finish_z>)
+/	m1
+	O100 WHILE [#<x_start> LT [#<finish_rad>- #3]]
+        g0 X #<x_start>
+	#<x_start>=[#<x_start> + #<cut_size>]
+	G1 X #<x_start>
+	G1 Z #23 X[#<x_start> + #24]
+        O101 IF [#6 GT 0]
+                G3 Z#<finish_z> X[#<x_start> + #24 + #21] I#21 K#20
+		G1 X[#<x_start> + #24 + #21 + #3]
+        O101 ELSE
+	        G1 X[#<x_start> + #24 + [#<cut_size> * 1.5]]
+        O101 ENDIF
+	G0 X[#<_x> - 1]
+	G0 Z[#13]
+	O100 ENDWHILE
+
+	G0 x#1
+	G1 Z #23 X[#<finish_rad>+ #24]
+        O102 IF [#6 GT 0]
+                G3 Z#<finish_z> X[#<finish_rad>+ #24 + #21] I#21 K#20
+		G1 X[#<finish_rad>+ #24 + #21 + #<cut_size>]
+        O102 ELSE
+	        G1 X[#<finish_rad>+ #24 + #<cut_size>]
+        O102 ENDIF
+	G0 Z #13
+	G0 X #<finish_rad>; For touch-off
+        M5
+	G7
+O<boring> endsub
+
+M2

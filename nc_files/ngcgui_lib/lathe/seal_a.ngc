@@ -1,0 +1,248 @@
+; Author: Marius Liebenberg
+(info: Complete seal turning - lathe)
+o<seal_a>sub
+      #<Stock_Dia> = #1 (=50 Stock Diameter)
+            #<OD> =  #2 (=48 OD-Outside Diameter)
+      #<Hole_Dia> =  #3 (=20 Hole size)
+            #<ID> =  #4 (=22 ID-Inside Diameter)
+            #<S0> =  #5 (=4 S0-Width Outside Slot)
+            #<S1> =  #6 (=4 S1-Width Inside Slot)
+            #<D0> =  #7 (=2 D0-Depth Outside Slot)
+            #<D1> =  #8 (=2 D1-Depth Inside Slot)
+             #<W> =  #9 (=10 W-Width of Seal)
+             #<C> = #10 (=1 C-Width of chamfer)
+      #<Face_Cut> = #11 (=0.5 Size of face cut)
+     #<Depth_Cut> = #12 (=1 Cut Size)
+  #<SurfaceSpeed> = #13 (=80 Surface Speed)
+      #<FeedRate> = #14 (=200 Feed mmPM)
+#<MaxSpindle_RPM> = #15 (=1500 MAX RPM)
+        #<TW1_LH> = #16 (=2 Tool 1 Width)
+        #<TW2_LH> = #17 (=2 Tool 2 Width)
+         #<dwell> = #18 (=0 Time for spindle to stop)
+
+;#<left> =  #<_hal[twincontrol.select-lh]> 
+;#<right:> = #<_hal[twincontrol.select-rh]>
+
+;(Probe here first)
+;o<if00> if [[#<left> eq 1] and [#<right> eq 1]]
+;						o<probe_both> call
+;				else if [#<left> eq 1]
+;						o<probe_left> call
+;				else if [#<right> eq 1]
+;						o<probe_right> call
+;o<if00> endif
+
+#<Z_StartOfCut> = [[#<Face_Cut> - 0.5] * -1]
+#<Spring_Cuts> = 0
+#<Stock_Len> = 0
+
+
+
+
+T1 M6
+;T#<ToolNumber> M6
+; G43: toollength offset
+; G7:  diameter mode
+; G96: constant surface speed
+G43 G7 G96 D#<MaxSpindle_RPM> S#<SurfaceSpeed>
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;; FACE THE PART ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;M3  ;CW
+M4  ;CCW
+G4 P#<dwell>
+
+G0 X[#<Stock_Dia> + 1] Z#<Z_StartOfCut>
+#<Current-Diameter> = #<Stock_Dia>
+#<Current_Face> = 0
+
+G0 Z#<Current_Face>
+
+;#<Current_Diameter> = #<ID>
+#<Target> = [#<Current_Face> - #<Face_Cut>]
+
+o010 while [#<Current_Face> gt #<Target>]
+
+o011   if [#<Current_Face> - #<Depth_Cut> gt #<Target>]
+         #<Current_Face> = [#<Current_Face> - #<Depth_Cut>]
+o011   else
+         #<Current_Face> = #<Target>
+o011   endif
+				
+			 G0 Z#<Current_Face>
+       G1 X[#<ID> - 1] F#<FeedRate>
+       Z[#<Current_Face> +1]
+       G0 X[#<Stock_Dia>+1]
+       
+o010 endwhile
+
+G10 L2 P1 Z0  ; set the new zero for Z on the face
+
+;G0 X-[#<ID> + 1]
+;G0 Z#<Z_StartOfCut>
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; CUT THE ID ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+M5
+G4 P#<dwell>
+M3
+G4 P#<dwell>
+
+;G0 X#<Hole_Dia> Z#<Z_StartOfCut>
+#<Current-Diameter> = #<Hole_Dia>
+#<Final_Dia>  = #<ID>
+#<Z_EndOfCut> = [[[#<W> * [-1]] - 1] - [#<TW1_LH> + 0.5]]
+
+o100 while [#<Current-Diameter> lt #<ID>]
+
+O101   if [#<Current-Diameter> + #<Depth_Cut> lt #<ID>]
+         #<Current-Diameter> = [#<Current-Diameter> + #<Depth_Cut>]
+O101   else
+         #<Current-Diameter> = #<ID>
+O101   endif
+
+       X-#<Current-Diameter>
+       G1 Z#<Z_EndOfCut> F#<FeedRate>
+       G0 X-[#<Current-Diameter>-1]
+       Z#<Z_StartOfCut>
+o100 endwhile
+
+o102 while [#<Spring_Cuts> gt 0]
+       G1 X#<ID>
+       Z#<Z_EndOfCut>
+       X[#<ID>-1]
+       G0 Z#<Z_StartOfCut>
+       #<Spring_Cuts> = [#<Spring_Cuts> -1]
+o102 endwhile
+
+G0 X-[#<Current-Diameter> - 1]
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;; CUT THE INSIDE SLOT ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+#<C1> = [[[#<W> / 2]+[#<S1> / 2] - #<TW1_LH>] * -1]
+#<C2> = [[[#<S1> - #<TW1_LH>] * -1 ]+ #<C1> ]
+
+G0 Z#<C1>
+
+#<Current_Diameter> = #<ID>
+#<Target> = [#<ID> + #<D1>]
+
+o110 while [#<Current-Diameter> lt #<Target>]
+
+O111   if [#<Current-Diameter> + #<Depth_Cut> lt #<Target>]
+         #<Current-Diameter> = [#<Current-Diameter> + #<Depth_Cut>]
+O111   else
+         #<Current-Diameter> = #<Target>
+O111   endif
+
+       X-#<Current-Diameter>
+       G1 Z#<C2> F#<FeedRate>
+       G0 X-[#<Current-Diameter>-1]
+       Z#<C1>
+o110 endwhile
+
+G0 X-[[#<Target> - #<D1>] - 1]
+G0 Z#<Z_StartOfCut>
+ 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;; CUT THE CHAMFER ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; First cut a slot at the end of the part
+G0 X-#<ID>
+G0 Z-[#<W> + #<TW1_LH>] 
+G1 X-[#<ID> + #<C>] F[#<FeedRate> / 2]
+
+;; Now cut the chamfer
+G1 X-[#<ID> - #<C>] Z-[#<W> + #<C>] F#<FeedRate>
+G0 X-[#<ID> - 1]
+G0 Z-#<C>
+G1 X-[#<ID> + #<C>] Z0
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; NOW CUT THE OD ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+M5
+G4 P#<dwell>
+M4
+G4 P#<dwell>
+
+T2 M6
+G0 Z#<Z_StartOfCut>
+G0 X#<Stock_Dia> 
+#<Current-Diameter> = #<Stock_Dia>
+
+o200 while [#<Current-Diameter> gt #<OD>]
+
+O201   if [#<Current-Diameter> - #<Depth_Cut> gt #<OD>]
+         #<Current-Diameter> = [#<Current-Diameter> - #<Depth_Cut>]
+O201   else
+         #<Current-Diameter> = #<OD>
+O201   endif
+
+       X#<Current-Diameter>
+       G1 Z#<Z_EndOfCut> F#<FeedRate>
+       G0 X[#<Current-Diameter>+1]
+       Z#<Z_StartOfCut>
+o200 endwhile
+
+o202 while [#<Spring_Cuts> gt 0]
+       G1 X#<OD>
+       Z#<Z_EndOfCut>
+       X[#<OD>+1]
+       G0 Z#<Z_StartOfCut>
+       #<Spring_Cuts> = [#<Spring_Cuts> -1]
+o202 endwhile
+ 
+G0 X[#<Current-Diameter>+1]
+
+;;;;;;;;;;;;;;;;;;;;;;;;;; CUT THE OUTSIDE SLOT ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+#<C1> = [[[#<W> / 2]+[#<S1> / 2] - #<TW1_LH>] * -1]
+#<C2> = [[[#<S1> - #<TW1_LH>] * -1 ]+ #<C1> ]
+
+G0 Z#<C1>
+
+#<Current_Diameter> = #<OD>
+#<Target> = [#<OD> - #<D0>]
+
+o210 while [#<Current-Diameter> gt #<Target>]
+
+O211   if [#<Current-Diameter> - #<Depth_Cut> gt #<Target>]
+         #<Current-Diameter> = [#<Current-Diameter> - #<Depth_Cut>]
+O211   else
+         #<Current-Diameter> = #<Target>
+O211   endif
+
+       X#<Current-Diameter>
+       G1 Z#<C2> F#<FeedRate>
+       G0 X[#<Current-Diameter> +1]
+       Z#<C1>
+o210 endwhile
+G0 X[#<OD> + 1]
+G0 Z#<Z_StartOfCut>
+
+;;;;;;;;;;;;;;;;;;;;;;;; CUT OUTSIDE CHAMFER ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; First cut a slot at the end of the part
+G0 X#<OD>
+G0 Z-[#<W> + #<TW1_LH>] 
+G1 X[#<OD> - #<C>] F[#<FeedRate> / 2]
+
+;; Now cut the chamfer
+G1 X[#<OD> + #<C>] Z-[#<W> + #<C>] F#<FeedRate>
+G0 X[#<OD> + 1]
+G0 Z-#<C>
+;G0 X#<OD>
+G1 X[#<OD> - #<C>] 
+
+;;;;;;;;;;;;;;;;;;;;;;; PART the SEAL OFF ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+G0 X[#<Stock_Dia>]
+G0 Z[-#<W> - #<TW1_LH>]
+G1 X[#<ID> - 1]
+G0 X[#<Stock_Dia>]
+;G0 Z0
+
+M5 M9             ; stop spindle, all coolant off
+
+Z#<Z_StartOfCut>
+G49               ; cancel tool length offset
+G53 G0 X50 Z50      ; move in machine coordinates
+
+o<seal_a>endsub
+m2

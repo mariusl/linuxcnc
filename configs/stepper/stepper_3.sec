@@ -1,3 +1,5 @@
+# Includes for three axis stepper drive system
+
 [AXIS_0]
 TYPE = LINEAR
 MAX_VELOCITY = 15.0

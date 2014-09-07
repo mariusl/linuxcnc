@@ -12,12 +12,34 @@ variable unsigned accum;          //The value of each bit gets added to this, bi
 variable unsigned adc_mode;       //This holds the value of the current mode during the cs_out (low) period. There are three modes; ADC init (3 clock cycles), shift data in (12 clock cycles), shutdown (1 clock cycle).";
 variable unsigned adc_step;       //This holds the value of the state change index, 0 to 31 steps or 16 clock cycles.
 
+pin out bit test "test bit";
+variable bool tb;
+
 function _ nofp;
 license "GPL";
 
 ;;
+/*
+void init (void)
+{
+	unsigned x;
+	x = 1;
+	tb = 0;
+}
+
+void toggle(void){
+	if (tb == 0) {
+		tb = 1;
+	}else{
+		tb = 0;
+	}
+	test = tb;
+}
+*/
 
 FUNCTION(_) {
+	//init();
+	//toggle();
     switch (adc_mode) {
         case 0:                                       // ***  Mode 0 : Wake-up
             cs_out=0;                                 // Set cs_out low to wake up the ADC

@@ -1,0 +1,167 @@
+;;*************************************************************************
+;; Notes
+;; peck grooving on X axis
+;; ArcEye 2013
+;;*************************************************************************
+(info: Metric Lathe - stand alone adjustable peck grooving - multiple grooves - all values positive, will be converted)
+
+o<peck_groove> sub
+
+#<_move_feed> = #1              (=175 linear feed)
+#<_groove_feed> = #2            (=50  groove feed )
+#<_spindle_speed> = #3          (=800 spindle speed)
+#<_depth> = #4                  (=10 depth grooves)
+#<_groove_width> = #5           (=5 groove tool width)
+#<_grooves> = #6                (=1 grooves)
+#<_billet_diameter> = #7        (=30  billet diameter)
+#<_Z_start>= #8                 (=5 location Z groove 1)
+#<_Z_groove_increment> =#9      (=10 Z inc. between grooves)
+#<_X_standoff> = #10            (=35 X start and finish)
+#<_X_safe> = #11                (=2 X between grooves & retract)
+#<_coolant> = #12               (=9 coolant 7=Mist 8=Flood 9=Off)
+#<_pecking> = #13               (=1 Peck 0 = No 1 = Yes)
+#<_peck_start> = #14            (=2 start pecking, N x groove width)
+#<_retraction_model> = #15      (=0 Retract 0=full 1=groove dia)
+#<_pause> =#16                  (=4 Pause at top of retraction)
+#<_feed_reduction_ratio> = #17  (=0.90 feed reduction ratio)
+#<_speed_increase_ratio> = #18 (=1.2 speed increase ratio)
+#<_peck_ratio> = #19            (=0.90 peck reduction ratio)
+#<_min_feed> = #20              (=10 min feed)
+#<_max_speed> = #21             (=1000 max speed)
+#<_min_peck> = #22              (=0.50 min peck fraction of groove width)
+
+
+#<X_end> = [#<_billet_diameter> - [#<_depth> * 2]]
+#<NoPeckDepth> = [#<_billet_diameter> -[#<_groove_width> * #<_peck_start>]]
+
+o200 if[ #<NoPeckDepth> LE #<X_end>]
+    #<_pecking> = 0
+    (debug, Pecking turned off)
+o200 endif
+
+#<GrooveNum> = 1
+#<X> = [#<_billet_diameter> + #<_X_safe>]
+#<Z> = -#<_Z_start>
+
+o202 if[ #<_pecking> EQ 1 ]
+    #<X> = #<NoPeckDepth>
+    o201 if[ #<NoPeckDepth> LT #<X_end> ]
+        #<X> = #<X_end>
+    o201 endif
+o202 else
+    #<X> = #<X_end>
+o202 endif    
+    
+
+#<F> = #<_groove_feed>
+#<S> = #<_spindle_speed>
+#<Peck> = #<_groove_width>
+#<MinPeck> = [#<Peck> * #<_min_peck> ]
+#<OldX> = #<X>
+
+G17 G21 G40 G49 G7
+G80
+G90
+G64 P0.1
+F#<_move_feed> S#<_spindle_speed>
+M3
+
+M#<_coolant>
+
+G00 X#<_X_standoff> Z#<_Z_start>
+
+    o101 while[#<GrooveNum> LE #<_grooves> ]
+            
+            G00 X[#<_X_safe> + #<_billet_diameter>] Z#<Z>
+            G00 X[#<_billet_diameter> +0.1]
+            G01 X#<X> F#<F>
+            o124 if[#<_pecking> EQ 1]
+                o102 if[ #<_retraction_model> EQ 0]
+                    G00 X[#<_billet_diameter> + #<_X_safe>]
+                o102 else
+                    G00 X [#<X> + #<_groove_width> ]
+                o102 endif
+                o112 if[#<X> GT #<X_end> ] ;; prevent pause at end of groove
+                    G4 P#<_pause> 
+                o112 endif
+            o124 endif
+                    
+            o103 while[#<X> GT #<X_end> ]
+                
+                o110 if[ #<_pecking> EQ 1 ]
+                    #<OldX> = #<X>
+                    G00 X[#<OldX> +0.5]
+                            
+                   #<Peck> = [#<Peck> * #<_peck_ratio>]
+                    o104 if[#<Peck> LT #<MinPeck> ]
+                        #<Peck> = #<MinPeck>
+                    o104 endif               
+                    #<F> = [#<F> * #<_feed_reduction_ratio>]
+                    o105 if[#<F> LT #<_min_feed> ]
+                        #<F> = #<_min_feed>
+                    o105 endif
+                
+                    #<S> = [#<S> * #<_speed_increase_ratio>]
+                    o106 if[#<S> GT #<_max_speed> ]
+                        #<S> = #<_max_speed>
+                    o106 endif
+                                
+                    #<X> = [#<X> - #<Peck>]
+                    o107 if[ #<X> LT #<X_end>]
+                        #<X> = #<X_end>
+                    o107 endif
+                
+                    S#<S>
+                o110 endif
+                
+                G01 X#<X> F#<F>
+
+                o109 if[ #<_pecking> EQ 1 ]
+                    o108 if[ #<_retraction_model> EQ 0]
+                        G00 X[#<_billet_diameter> + #<_X_safe>]
+                    o108 else
+                        G00 X [#<X> + #<_groove_width> ]
+                    o108 endif
+                    o111 if[#<X> GT #<X_end>] ;; prevent pause at end of groove
+                        G4 P#<_pause> 
+                    o111 endif
+                o109 endif
+                        
+            o103 endwhile
+            
+            G00 X[#<_billet_diameter> + #<_X_safe>]
+            
+            #<F> = #<_groove_feed>
+            #<S> = #<_spindle_speed>
+            #<Peck> = #<_groove_width>
+            
+            o113 if[ #<_pecking> EQ 1 ]
+                 #<X> = #<NoPeckDepth>
+                o114 if[ #<NoPeckDepth> LT #<X_end> ]
+                    #<X> = #<X_end>
+                o114 endif
+            o113 else
+                #<X> = #<X_end>
+            o113 endif    
+                        
+            #<Z> = [#<Z> - #<_Z_groove_increment>]               
+   
+            
+            #<GrooveNum> = [#<GrooveNum> + 1] 
+               
+    o101 endwhile
+    
+    
+
+
+G00 X[#<_billet_diameter> + #<_X_safe>]
+
+M9
+M5
+
+G00 X#<_X_standoff> Z-#<_Z_start>
+
+M2
+
+
+o<peck_groove> endsub

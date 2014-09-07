@@ -1,0 +1,47 @@
+;Facing
+O<facing> sub
+G18 G7
+
+#5 = #<_hal[gladevcp.face.z-f]> (Finish Z )
+#1 = #<_hal[gladevcp.face.x-f]> (Finish X)
+#2 = #<_hal[gladevcp.face.sf-f]> (metres/min surface speed)
+#3 = #<_hal[gladevcp.face.cut-f]> (Cut / Increment )
+#4 = #<_hal[gladevcp.face.feed-f]> (Feed / Pitch)
+
+#14 = [#<_x> * 2] (starting X)
+#13 = #<_z> (starting Z)
+
+G7 ; Lathe Diameter Mode
+G18 ; XZ Plane
+G21 ; Metric Units
+G90 ; Absolute Distance
+G96 D1500 S#2 ; Constant Surface Speed Mode
+g95 F#4 ; Feed-Per-Rev Mode
+
+M6 T#<_hal[gladevcp.face.tool-s]> G43
+m3 ;Start Spindle
+
+g4p1 ; Wait to reach speed
+
+;Facing
+
+/	(debug, Facing finish dia #1 start  dia #14 start length #13 finish length #5)
+/	m1
+	O200 WHILE [#13 GT #5 + #3]
+	
+	#13=[#13-#3]
+	G1 Z#13
+	G1 X#1
+	G0 Z[#13+3]
+	G0 X#14
+	G0 Z#13
+	O200 ENDWHILE
+	
+	G1 Z#5
+	G1 X#1
+	G0 Z[#13+#3]
+	G0 X[#14+#3]
+	G0 Z#5 ; For touch-off
+        M5
+O<facing> endsub
+M2

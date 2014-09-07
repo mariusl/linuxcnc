@@ -1,0 +1,202 @@
+/*
+ * gears.comp
+ * This file is part of gears.comp
+ *
+ * Copyright (C) 2014 - Marius D Liebenberg
+ *
+ * gears.comp is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * gears.comp is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with gears.comp; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, 
+ * Boston, MA  02110-1301  USA
+ *
+ * THE AUTHORS OF THIS LIBRARY ACCEPT ABSOLUTELY NO LIABILITY FOR
+ * ANY HARM OR LOSS RESULTING FROM ITS USE.  IT IS _EXTREMELY_ UNWISE
+ * TO RELY ON SOFTWARE ALONE FOR SAFETY.  Any machinery capable of
+ * harming persons must have provisions for completely removing power
+ * from all motors, etc, before persons enter any danger area.  All
+ * machinery must be designed to comply with local and national safety
+ * codes, and the authors of this software can not, and do not, take
+ * any responsibility for such compliance.
+ *
+ * This code was written as part of the LinucCNC HAL project.  For more
+ * information, go to www.linuxcnc.org.
+ */
+ 
+ 
+component autogears "A component used to detect the current gear of a lathe and prompts the user to select the correct gear";
+
+description " This component looks at the requested spindle speed as well as the actual spindle speed and \
+determines that the correct gears is used for constant surface speed cutting on a lathe. \
+If the gear is not correct it will not turn on the spindle-at-speed signal and turn off the \
+spindle. It will indicate what gear should be selected for the required speed. The information \
+for selecting gears is obtained from a list of speed ranges for each gear. \
+\
+The function will start the spindle at the higest possible speed and with the higest gain setting \
+to try and achieved the requested maximum speed. It will hunt up the gear settings until it finds the \
+required gear setting. If the current gear does not match the required gear, then the spindle will stop \
+and the indicator will show the required gear. Once the user has selected the correct pulley or gear \
+they push the go button and the system will test the gear again. If it finds the correct gear was selected, \
+the output signal will be scaled to match the full speed of the selected gear." ;
+
+author "Marius D. Liebenberg";
+
+//option singleton yes;
+//option default_count = 1;
+//option userspace yes;
+
+// Input Pins
+pin in float 		spindle_cmd_in ; 
+pin in float        spindle_fb_in ;
+
+pin in float        spindle_req_max  "set this parameter in the gcode file- g96(xxx)";
+
+pin in bit 			spindle_en_in ;
+pin in bit          timer_off ;
+pin in bit          go_btn ;
+
+// Output Pins
+pin out float       spindle_cmd_out = 0.0;
+pin out float       spindle_fb_out ;
+pin out float       spindle_gain_out;
+pin out float       time_delay ;
+
+pin out s32         gear_curr ;
+pin out s32         gear_req ;
+
+pin out bit         spindle_at_speed_out ;
+pin out bit         spindle_en_out ;
+pin out bit         timer_on ;
+
+// Parameters 
+param rw s32        gear_max_0#[6]      "maximum rpm for every gear";
+param rw s32        gear_min_0#[6]      "minimum rpm for every gear";
+param rw s32        gear_delay_0#[6]    "motor startup and stop delay for every gear";
+param rw float      spindle_gain_0#[6]  "spindle gain for each gear selected";
+param rw s32        rpm_tol = 10 ;
+param rw float      spindle_max_gain    "base gain to achiev max rpm. 0-10v = 2250rpm";
+param rw float      spindle_max         "maximum rpm of the spindle";
+
+// Global Variables
+variable float      var ;
+variable unsigned   process;
+variable bool       new_process = 0;
+variable unsigned   current_gear = 5;
+variable unsigned   next_state;
+variable unsigned   i = 0;
+variable unsigned   x = 0;
+
+
+license "GPL";
+
+function _;
+
+;;
+
+enum state 
+{
+    eIdle           =   0,
+    eStart          =   1,
+    eStart_delay    =   2,
+    eCheck_rpm      =   3,
+    eCalc_gear      =   4,
+    eStop_delay     =   5,
+    eWait_for_go    =   6,
+    eRunning        =   7
+};
+
+#include "rtapi_math.h"
+
+FUNCTION(_) {
+
+    if (spindle_en_in == 1)
+    {
+        if (new_process == 1)
+        {
+            process = eStart;
+            new_process = false;
+        }
+        switch(process)
+        {
+            case eIdle:
+                new_process = true;
+            break;
+            case eStart:
+                spindle_gain_out = spindle_max_gain; // set gain for full drive
+                spindle_cmd_out = spindle_max; // run spindle at full speed
+                spindle_en_out = 1;
+                process = eStart_delay;
+                next_state = eCalc_gear;
+            break;
+            case eCalc_gear :
+               
+                while (spindle_req_max < gear_max_0(i)){i++;}  // seek upwards until the rpm is bigger
+                while (spindle_req_max > gear_min_0(i)){i--;}  // seek down until rpm is smaller
+                gear_req = x;
+            
+                while (spindle_fb_in < gear_max_0(i)){i++;}  // seek upwards until the rpm is bigger
+                while (spindle_fb_in > gear_min_0(i)){i--;}  // seek down until rpm is smaller
+                                
+                current_gear = i;    // the gear is found
+                gear_curr = current_gear;
+                
+                if (gear_curr != gear_req)
+                {
+                    spindle_cmd_out = 0;
+                    spindle_en_out = false;
+                    process = eStart_delay;
+                    next_state = eWait_for_go;
+                    spindle_at_speed_out = false;
+                    
+                }else
+                {
+                    spindle_gain_out = spindle_gain_0(current_gear);
+                    spindle_at_speed_out = true;
+                    process = eRunning;
+                }                   
+            break;    
+            case eWait_for_go :
+                if (go_btn == true)
+                {
+                    process = eStart;
+                }
+            break;    
+            case eStart_delay :
+                time_delay = gear_delay_0(current_gear);  // set the time delay for current gear
+                if (timer_on == 0)  // if the timer was tripped already do nothing
+                {
+                    timer_on = 1;  // else trip the timer
+                }
+                if (timer_off == 1)   // if the timer has timed out
+                {
+                    timer_on = 0;   // remove the trip
+                    time_delay = 0;
+                    process = next_state;  // return to the caller of the time delay
+                }
+            break;    
+            case eRunning :
+                spindle_cmd_out = spindle_cmd_in;
+                spindle_fb_out = spindle_fb_in;
+            break;
+            default :
+                process = eIdle;
+            break;
+        }
+        
+    }else
+    {
+        process = eIdle;
+        new_process = true;
+    }
+	
+}
+

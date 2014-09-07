@@ -1,0 +1,50 @@
+;threading
+
+O<threading> sub
+G18 G7
+
+#5 = #<_hal[gladevcp.thread.z-f]> (Finish Z )
+#1 = #<_hal[gladevcp.thread.x-f]> (Nominal Dia)
+#2 = #<_hal[gladevcp.thread.sf-f]> (metres/min surface speed)
+#4 = #<_hal[gladevcp.thread.pitch-f]> (Feed / Pitch)
+#<OD> = [#1 - 2 * 0.108 * #4]
+#<ID> = [#1 - 2 * 0.65 * #4]
+
+#14 = [#<_x> * 2] (starting X)
+#13 = #<_z> (starting Z)
+
+G7 ; Lathe Diameter Mode
+G18 ; XZ Plane
+G21 ; Metric Units
+G90 ; Absolute Distance
+G96 D200 S#2 ; Constant Surface Speed Mode
+g95 F0.1 ; Feed-Per-Rev Mode
+
+M6 T#<_hal[gladevcp.thread.tool-s]> G43
+m3 ;Start Spindle
+
+g4p1 ; Wait to reach speed
+
+;Threading
+        O51 IF [#<_hal[gladevcp.thread.internal]> GT 0.5]
+               (debug, INTERNAL Threading thread dia-#1 start-#13 finish-#5 Pitch-#4 Depth-#3)
+		#3 = [#4 * 0.577]
+		g1 X [#<ID> - 1]
+ 		g76 p#4 z#5 i1 j0.2 k#3 h3 r1.5 q29.5 e0 l0
+		g1 X #<ID> ;final thread truncation
+		g1 Z #5
+		G0 X[#<ID> - 1]
+        O51 ELSE
+		(debug, EXTERNAL Threading thread dia-#1 start-#13 finish-#5 Pitch-#4 Depth-#3)
+		#3 = [#4 * 0.613]
+		g1 X [#<OD> + 1]
+ 		g76 p#4 z#5 i-1 j0.2 k#3 h3 r1.5 q29.5 e0 l0
+		g1 X #<OD> ; final truncation
+		g1 Z #5
+		G0 X[#<OD> +1]
+        O51 ENDIF
+	G0 Z #13
+	m5
+O<threading> endsub
+
+M2

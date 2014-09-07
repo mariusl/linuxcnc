@@ -1,0 +1,28 @@
+(info: G76 Threading)
+o<g76-od> sub
+#<tool>         = #1 (= 7 Tool)
+#<rpm>          = #2 (= 250 RPM)
+#<diameter>     = #3 (Diameter)
+#<tpi>          = #4 (TPI)
+#<inital_depth> = #5 (= 0.010 Inital Depth)
+#<thread_depth> = #6 (= 0.045 Thread Depth)
+#<spring_pass>  = #7 (Spring Passes)
+#<z_start>      = #8 (= 0.100 Z Start)
+#<z_end>        = #9 (Z End)
+#<x_offset>     = #10 (= 0.025 X Offset)
+#<q_angle>      = #11 (= 29.5 Combine Angle)
+#<taper>        = #12 (= 0 Taper 0=none 2=exit)
+#<coolant>      = #13 (= 8 Coolant 8 On 9 Off)
+
+#<pitch> = [1/#<tpi>]
+#<radius> = [#<diameter> / 2]
+
+G8 G18 G20 G40 G49 G97
+T#<tool> M6 G43
+M#<coolant>
+S#<rpm> M3
+G0 Z#<z_start> X[#<radius> + #<x_offset>]
+G76 P#<pitch> Z#<z_end> I-#<x_offset> J#<inital_depth> K#<thread_depth> Q#<q_angle> L#<taper> E#<thread_depth> H#<spring_pass>
+M5 M9
+G53 G0 X0 Z0
+o<g76-od> endsub

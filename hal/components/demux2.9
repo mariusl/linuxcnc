@@ -1,0 +1,39 @@
+.TH DEMUX2 "9" "2014-06-11" "LinuxCNC Documentation" "HAL Component"
+.de TQ
+.br
+.ns
+.TP \\$1
+..
+
+.SH NAME
+
+demux2 \- A demultiplexer to select from one of two outputs to connect to the input
+.SH SYNOPSIS
+.HP
+.B loadrt demux2 [count=\fIN\fB|names=\fIname1\fB[,\fIname2...\fB]]
+.SH DESCRIPTION
+
+ This component allows you to connect a single input to one of several outputs. This version will connect only one of two outputs.
+.SH FUNCTIONS
+.TP
+\fBdemux2.\fIN\fB\fR (requires a floating-point thread)
+
+.SH PINS
+.TP
+.B demux2.\fIN\fB.in0\fR bit in \fR
+Any float input value
+.TP
+.B demux2.\fIN\fB.sel\fR bit in \fR
+If HIGH the out1 will be connect to in0, else the out 0 will be connected 
+.TP
+.B demux2.\fIN\fB.out0\fR bit out \fR
+Follows the value of in0 if sel is FALSE
+.TP
+.B demux2.\fIN\fB.out1\fR bit out \fR
+Follows the value of in0 if sel is TRUE
+.SH AUTHOR
+
+Marius D. Liebenberg
+.SH LICENSE
+
+GPL

@@ -1,0 +1,7 @@
+o<probe_left> sub
+G0 X0
+G1 X#<_ini[PROBE.X_OFFSET] F500
+G38.2 Z#<_ini[-PROBE.Z_MAX_TRAVEL] F#<_ini[PROBE.PROBE_SPEED]
+G38.4 Z20 
+o<probe_left> endsub
+
